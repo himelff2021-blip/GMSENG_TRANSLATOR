@@ -40,7 +40,7 @@
     }
     .btn-translate::after {
       content: "";
-      position: absolute;
+      position: right;
       top: -50%;
       left: -50%;
       width: 200%;
@@ -94,6 +94,31 @@
       box-shadow: 0 0 10px rgba(0,198,255,0.5);
     }
 
+    /* --- New Clear Button Style --- */
+    .btn-clear {
+        background: linear-gradient(135deg, #ff416c, #ff4b2b); /* Red/Pink Gradient */
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .btn-clear:hover {
+        transform: translateY(-3px) scale(1.05);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.45);
+    }
+    .btn-clear::after {
+        content: "";
+        position: left;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.3) 10%, transparent 40%);
+        transform: scale(0);
+        transition: transform 0.5s ease;
+    }
+    .btn-clear:hover::after {
+        transform: scale(1);
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
@@ -132,6 +157,10 @@
         <button id="translate-btn" class="btn-translate text-white font-bold py-3 px-10 rounded-full text-lg">
           অনুবাদ করুন 🌐
         </button>
+        </button>
+        <button id="clear-btn" class="btn-clear text-white font-bold py-3 px-10 rounded-full text-lg">
+          পরিষ্কার করুন 🗑️
+        </button>
       </div>
 
       <!-- Outputs -->
@@ -149,65 +178,107 @@
   </div>
 
     <script>
-        const translateBtn = document.getElementById('translate-btn');
-        const languageSelect = document.getElementById('language-select');
-        const inputText = document.getElementById('input-text');
-        const inputLabel = document.getElementById('input-label');
-        const translationOutput = document.getElementById('translation-output');
-        const pronunciationOutput = document.getElementById('pronunciation-output');
-        const translationTitle = document.getElementById('translation-title');
-        const pronunciationTitle = document.getElementById('pronunciation-title');
+    // --- DOM Elements ---
+    const translateBtn = document.getElementById('translate-btn');
+    const languageSelect = document.getElementById('language-select');
+    const inputText = document.getElementById('input-text');
+    const inputLabel = document.getElementById('input-label');
+    const translationOutput = document.getElementById('translation-output');
+    const pronunciationOutput = document.getElementById('pronunciation-output');
+    const translationTitle = document.getElementById('translation-title');
+    const pronunciationTitle = document.getElementById('pronunciation-title');
+    const clearBtn = document.getElementById('clear-btn');
+    
+    // --- Constants ---
+    // WARNING: Using API key directly in client-side code is NOT secure.
+    const apiKey = "AIzaSyB_D-Qr1RjsyGyfThXv6kJ2W7rG1NjUpRg";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
-        languageSelect.addEventListener('change', () => {
-            const mode = languageSelect.value;
-            if (mode === 'ko-bn') {
-                inputLabel.textContent = 'কোরিয়ান টেক্সট লিখুন:';
-                inputText.placeholder = 'এখানে কোরিয়ান টেক্সট লিখুন...';
-                translationTitle.textContent = 'অনুবাদ (বাংলা ও English):';
-                pronunciationTitle.textContent = 'উচ্চারণ (বাংলা):';
-                inputText.value = '';
-                translationOutput.textContent = '';
-                pronunciationOutput.textContent = '';
-            } else {
-                inputLabel.textContent = 'বাংলা টেক্সট লিখুন:';
-                inputText.placeholder = 'এখানে বাংলা টেক্সট লিখুন...';
-                translationTitle.textContent = 'অনুবাদ (কোরিয়ান):';
-                pronunciationTitle.textContent = 'উচ্চারণ (বাংলা):';
-                inputText.value = '';
-                translationOutput.textContent = '';
-                pronunciationOutput.textContent = '';
-            }
-        });
 
-        translateBtn.addEventListener('click', async () => {
-            const text = inputText.value;
-            if (!text.trim()) return;
+    // --- Event Handlers ---
 
-            const mode = languageSelect.value;
-            
-            // Disable button and show loading states
-            translateBtn.disabled = true;
-            translateBtn.textContent = 'অনুবাদ হচ্ছে...';
-            translationOutput.textContent = 'অনুবাদ করা হচ্ছে.দয়া করে অপেক্ষা করুন...';
-            pronunciationOutput.textContent = 'উচ্চারণ তৈরি করা হচ্ছে...';
-            
-            if (mode === 'ko-bn') {
-                // Get pronunciation first (client-side)
-                pronunciationOutput.textContent = getPronunciationKoToBn(text);
-                
-                // Get translation (API call)
-                const translation = await getAiTranslationKoToBn(text);
-                translationOutput.textContent = translation;
-            } else { // bn-ko mode
-                const [translation, pronunciation] = await getAiTranslationBnToKo(text);
-                translationOutput.textContent = translation;
-                pronunciationOutput.textContent = pronunciation;
-            }
+    languageSelect.addEventListener('change', () => {
+        const mode = languageSelect.value;
+        if (mode === 'ko-bn') {
+            inputLabel.textContent = 'কোরিয়ান টেক্সট লিখুন:';
+            inputText.placeholder = 'এখানে কোরিয়ান টেক্সট লিখুন...';
+            translationTitle.textContent = 'অনুবাদ (বাংলা ও English):';
+            pronunciationTitle.textContent = 'উচ্চারণ (বাংলা):';
+            clearFields(); // মোড পরিবর্তন হলেও পরিষ্কার করে দেওয়া ভালো
+        } else {
+            inputLabel.textContent = 'বাংলা টেক্সট লিখুন:';
+            inputText.placeholder = 'এখানে বাংলা টেক্সট লিখুন...';
+            translationTitle.textContent = 'অনুবাদ (কোরিয়ান):';
+            pronunciationTitle.textContent = 'উচ্চারণ (বাংলা):';
+            clearFields(); // মোড পরিবর্তন হলেও পরিষ্কার করে দেওয়া ভালো
+        }
+    });
 
-            // Re-enable button
+    translateBtn.addEventListener('click', async () => {
+        const text = inputText.value;
+        if (!text.trim()) return;
+
+        const mode = languageSelect.value;
+
+        // Disable button and show loading states
+        translateBtn.disabled = true;
+        translateBtn.textContent = 'অনুবাদ হচ্ছে...';
+        
+        // Remove fade-out class if present to show loading text
+        translationOutput.classList.remove('fade-out');
+        pronunciationOutput.classList.remove('fade-out');
+        
+        translationOutput.textContent = 'অনুবাদ করা হচ্ছে.দয়া করে অপেক্ষা করুন...';
+        pronunciationOutput.textContent = 'উচ্চারণ তৈরি করা হচ্ছে...';
+
+        if (mode === 'ko-bn') {
+            // Get pronunciation first (client-side)
+            pronunciationOutput.textContent = getPronunciationKoToBn(text);
+
+            // Get translation (API call)
+            const translation = await getAiTranslationKoToBn(text);
+            translationOutput.textContent = translation;
+        } else { // bn-ko mode
+            const [translation, pronunciation] = await getAiTranslationBnToKo(text);
+            translationOutput.textContent = translation;
+            pronunciationOutput.textContent = pronunciation;
+        }
+
+        // Re-enable button
+        translateBtn.disabled = false;
+        translateBtn.textContent = 'অনুবাদ করুন 🌐';
+    });
+
+    // Event listener for Clear button (NEW) - Includes Fade Out Animation
+    clearBtn.addEventListener('click', () => {
+        clearFields();
+    });
+
+    // --- Core Functions ---
+
+    // Function to clear all fields with Animation
+    function clearFields() {
+        // Add the fade-out class to start the animation
+        translationOutput.classList.add('fade-out');
+        pronunciationOutput.classList.add('fade-out');
+        
+        // Clear input field immediately for responsiveness
+        inputText.value = '';
+
+        // Wait for the animation (e.g., 450ms) to complete before clearing content
+        setTimeout(() => {
+            // Clear content
+            translationOutput.textContent = '';
+            pronunciationOutput.textContent = '';
+
+            // Remove the fade-out class so the next output appears normally
+            translationOutput.classList.remove('fade-out');
+            pronunciationOutput.classList.remove('fade-out');
+
             translateBtn.disabled = false;
-            translateBtn.textContent = 'অনুবাদ করুন';
-        });
+            translateBtn.textContent = 'অনুবাদ করুন 🌐'; // Reset button text
+        }, 450); // Set timeout slightly longer than the CSS transition (0.4s or 400ms)
+    }
 
         // --- Functions for Korean to Bengali Translation ---
         async function getAiTranslationKoToBn(text) {
@@ -241,6 +312,7 @@
     * 이어서 -> একবারে
     * 면취 -> মিউঞ্ছি
     * 골부위 -> গুল্বুই
+
 
 3.  **English in Korean Script:** Convert English words written in Hangul back to English. Examples: 프로세스 -> Process, 데이터 -> Data.
 4.  **Allowed Korean Words:** The ONLY Korean words allowed in the final output are: 황삭, 중삭, 정삭, 잔삭, 전체.
@@ -411,8 +483,6 @@ Provide only the Korean translation and its Bengali pronunciation as the respons
     </script>
 </body>
 </html>
-
-
 
 
 
